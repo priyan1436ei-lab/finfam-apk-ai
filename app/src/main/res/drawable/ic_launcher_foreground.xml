@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Shield outer shadow / glow -->
+    <path
+        android:pathData="M54,22 L76,32 C76,56 66,74 54,84 C42,74 32,56 32,32 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="32"
+                android:startY="22"
+                android:endX="76"
+                android:endY="84"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#4F7CFF" />
+                <item android:offset="1.0" android:color="#7C5CFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Shield inner core -->
+    <path
+        android:pathData="M54,26 L72,34.5 C72,54 63.5,69 54,78 C44.5,69 36,54 36,34.5 Z"
+        android:fillColor="#0E1528" />
+
+    <!-- Radar scan pulse and checkmark / radar wave -->
+    <path
+        android:pathData="M43,52 L49,58 L65,42"
+        android:strokeColor="#10B981"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Top radar dot -->
+    <path
+        android:pathData="M54,34 L54,38"
+        android:strokeColor="#4F7CFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+
+    <path
+        android:pathData="M54,33 A 1.5 1.5 0 1 1 54 33.01"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+</vector>

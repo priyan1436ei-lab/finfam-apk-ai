@@ -1,0 +1,7 @@
+{
+  "name": "FinFam",
+  "description": "Complete Family Financial Management & Wealth app with Razorpay Payment Gateway, AI Financial Coach, Budgeting, Bills, and Health Score.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
