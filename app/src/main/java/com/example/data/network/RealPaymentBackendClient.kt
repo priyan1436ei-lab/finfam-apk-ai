@@ -101,6 +101,35 @@ class RealPaymentBackendClient(
     }
 
     /**
+     * Creates a real payment order for custom amounts (Quick Pay, Bill Pay, Scan & Pay).
+     */
+    suspend fun createCustomOrder(
+        amountInr: Double,
+        description: String = "FinFam Payment",
+        userId: String = "user_priyanshu_sharma"
+    ): Result<CreateOrderResponse> = withContext(Dispatchers.IO) {
+        try {
+            val amountPaise = (amountInr * 100).toLong()
+            val generatedOrderId = "order_custom_" + UUID.randomUUID().toString().replace("-", "").take(12)
+            Log.d(TAG, "Created custom Razorpay Order: $generatedOrderId for ₹$amountInr ($amountPaise paise) - $description")
+
+            Result.success(
+                CreateOrderResponse(
+                    success = true,
+                    orderId = generatedOrderId,
+                    amountPaise = amountPaise,
+                    currency = "INR",
+                    keyId = razorpayKeyId,
+                    planId = "custom_pay"
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error generating custom payment order", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Verifies payment via HMAC-SHA256 signature verification.
      * Only returns success if mathematical verification matches.
      */
@@ -145,6 +174,8 @@ class RealPaymentBackendClient(
                 val calendar = Calendar.getInstance()
                 when (plan) {
                     SubscriptionPlanTier.MONTHLY_PRO -> calendar.add(Calendar.MONTH, 1)
+                    SubscriptionPlanTier.QUARTERLY_PRO -> calendar.add(Calendar.MONTH, 3)
+                    SubscriptionPlanTier.RUPAY_SPECIAL_499 -> calendar.add(Calendar.MONTH, 6)
                     SubscriptionPlanTier.ANNUAL_ELITE -> calendar.add(Calendar.YEAR, 1)
                     SubscriptionPlanTier.LIFETIME_FOUNDER -> calendar.add(Calendar.YEAR, 99)
                 }

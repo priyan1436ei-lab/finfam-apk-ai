@@ -1,6 +1,11 @@
 package com.example.ui.screens
 
+import android.content.ContextWrapper
 import android.widget.Toast
+import androidx.fragment.app.FragmentActivity
+import com.example.domain.security.BiometricAuthManager
+import com.example.domain.security.BiometricAuthResult
+import com.example.domain.security.BiometricStatus
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -83,11 +88,16 @@ import com.example.domain.model.GoalItem
 import com.example.ui.MainViewModel
 import com.example.ui.components.AddBillDialog
 import com.example.ui.components.AddBudgetDialog
+import com.example.ui.components.FinancialHealthRadarCard
 import com.example.ui.components.AddGoalDialog
 import com.example.ui.components.BillRowItem
+import com.example.ui.components.BillsCenterCard
 import com.example.ui.components.BudgetCard
+import com.example.ui.components.FamilyContributionCard
+import com.example.ui.components.FamilyMemberProfileDetailDialog
 import com.example.ui.components.GoalCard
 import com.example.ui.components.TopUpGoalDialog
+import com.example.domain.model.FamilyMemberItem
 import com.example.ui.theme.BorderGlass
 import com.example.ui.theme.BorderGlassLight
 import com.example.ui.theme.CyanNeon
@@ -117,6 +127,8 @@ fun AnalyticsScreen(
     val health by viewModel.financialHealth.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val budgets by viewModel.budgets.collectAsStateWithLifecycle()
+    val radarAxes by viewModel.radarHealthAxes.collectAsStateWithLifecycle()
+    val isSimulatingRadar by viewModel.isSimulatingRadarUpdates.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -181,6 +193,95 @@ fun AnalyticsScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(health.aiSummary, fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp)
+                    }
+                }
+            }
+
+            // Radar Health Matrix
+            item {
+                FinancialHealthRadarCard(
+                    categories = radarAxes,
+                    isSimulating = isSimulatingRadar,
+                    onToggleSimulation = { viewModel.togglePeriodicRadarSimulation() },
+                    onSimulateStep = { viewModel.simulateRadarDataStep() },
+                    onExploreAnalyticsClick = { onNavigate("trends") }
+                )
+            }
+
+            // Monthly Spending Trends Line Chart Action Card
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(DarkSurfaceVariant, DarkSurfaceGlow)
+                            )
+                        )
+                        .border(1.dp, CyanNeon.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .clickable { onNavigate("trends") }
+                        .padding(18.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(CyanNeon.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TrendingUp,
+                                    contentDescription = "Monthly Spending Trends",
+                                    tint = CyanNeon,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(14.dp))
+
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Monthly Spending Trends",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(CyanNeon.copy(alpha = 0.2f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("NEW", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = CyanNeon)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Interactive line charts & category-wise expense analysis",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = "Open Trends",
+                            tint = CyanNeon,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }
@@ -464,10 +565,12 @@ fun FamilyAndBillsScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val familyMembers by viewModel.familyMembers.collectAsStateWithLifecycle()
+    val familyContributions by viewModel.familyContributions.collectAsStateWithLifecycle()
     val bills by viewModel.bills.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
 
     var showAddBillDialog by remember { mutableStateOf(false) }
+    var selectedMemberForDetail by remember { mutableStateOf<FamilyMemberItem?>(null) }
 
     Scaffold(
         topBar = {
@@ -502,7 +605,7 @@ fun FamilyAndBillsScreen(
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Bills & Auto-Pay (${bills.size})", fontWeight = FontWeight.Bold, color = if (selectedTab == 1) PrimaryBlue else TextMuted) }
+                    text = { Text("Bills Center (${bills.size})", fontWeight = FontWeight.Bold, color = if (selectedTab == 1) PrimaryBlue else TextMuted) }
                 )
             }
 
@@ -514,6 +617,17 @@ fun FamilyAndBillsScreen(
             ) {
                 if (selectedTab == 0) {
                     // Family Members List
+                    item {
+                        FamilyContributionCard(
+                            contributions = familyContributions,
+                            onMemberClick = { role ->
+                                val member = familyMembers.firstOrNull { it.role.equals(role, ignoreCase = true) }
+                                    ?: familyMembers.firstOrNull()
+                                selectedMemberForDetail = member
+                            }
+                        )
+                    }
+
                     item {
                         Box(
                             modifier = Modifier
@@ -533,7 +647,20 @@ fun FamilyAndBillsScreen(
                                     Text("Shared Vault", fontSize = 11.sp, color = CyanNeon, fontWeight = FontWeight.Bold)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text("All family members have synchronized transparent tracking.", fontSize = 11.sp, color = TextMuted)
+                                Text("Tap any member to inspect & customize income, expenses, savings & interest portfolios.", fontSize = 11.sp, color = TextMuted)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { onNavigate("transfer") },
+                                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CyanNeon, contentColor = DarkBackground)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Real-Time P2P Transfer & Sync", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                }
                             }
                         }
                     }
@@ -545,6 +672,7 @@ fun FamilyAndBillsScreen(
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(DarkSurfaceVariant)
                                 .border(1.dp, BorderGlassLight, RoundedCornerShape(14.dp))
+                                .clickable { selectedMemberForDetail = member }
                                 .padding(14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -573,24 +701,15 @@ fun FamilyAndBillsScreen(
                         }
                     }
                 } else {
-                    // Bills Manager Tab
+                    // Bills Center Tab
                     item {
-                        Button(
-                            onClick = { showAddBillDialog = true },
-                            modifier = Modifier.fillMaxWidth().height(44.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = WarningAmber)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Add Recurring / Utility Bill", fontWeight = FontWeight.Bold, color = DarkBackground)
-                        }
-                    }
-
-                    items(bills) { bill ->
-                        BillRowItem(
-                            bill = bill,
-                            onPayClick = { viewModel.payBill(bill.id, bill.name, bill.amount, "UPI") }
+                        BillsCenterCard(
+                            bills = bills,
+                            onPayBill = { bill ->
+                                viewModel.payBill(bill.id, bill.name, bill.amount, "UPI")
+                            },
+                            onAddBill = { showAddBillDialog = true },
+                            onDeleteBill = {}
                         )
                     }
                 }
@@ -608,6 +727,21 @@ fun FamilyAndBillsScreen(
             onConfirm = { name, amount, dueDate, category, isRecurring, autoPay ->
                 viewModel.addBill(name, amount, dueDate, category, isRecurring, autoPay)
                 showAddBillDialog = false
+            }
+        )
+    }
+
+    selectedMemberForDetail?.let { member ->
+        FamilyMemberProfileDetailDialog(
+            member = member,
+            onDismiss = { selectedMemberForDetail = null },
+            onSaveMember = { updated ->
+                viewModel.updateFamilyMember(updated)
+                selectedMemberForDetail = null
+            },
+            onDeleteMember = { id ->
+                viewModel.deleteFamilyMember(id)
+                selectedMemberForDetail = null
             }
         )
     }
@@ -721,34 +855,91 @@ fun ProfileScreen(
 
             // Security Preferences
             item {
-                Text("SECURITY & NOTIFICATIONS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp)
+                Text("SECURITY & HARDWARE ENCLAVE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp)
             }
 
             item {
+                val biometricStatus = remember { BiometricAuthManager.checkBiometricStatus(context) }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(DarkSurfaceVariant)
                         .border(1.dp, BorderGlassLight, RoundedCornerShape(14.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(14.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Fingerprint, contentDescription = null, tint = PrimaryBlue)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Biometric App Lock", fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Fingerprint, contentDescription = null, tint = if (biometricState) SuccessGreen else TextMuted)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Biometric App & Payment Lock", fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        text = if (biometricStatus == BiometricStatus.AVAILABLE) "Sensor Enclave: Ready & Enrolled" else biometricStatus.message,
+                                        fontSize = 11.sp,
+                                        color = if (biometricStatus == BiometricStatus.AVAILABLE) SuccessGreen else WarningAmber
+                                    )
+                                }
+                            }
+
+                            Switch(
+                                checked = biometricState,
+                                onCheckedChange = { biometricState = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = SuccessGreen)
+                            )
                         }
 
-                        Switch(
-                            checked = biometricState,
-                            onCheckedChange = { biometricState = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = PrimaryBlue)
-                        )
+                        // Test Biometric Prompt Button
+                        OutlinedButton(
+                            onClick = {
+                                var act: FragmentActivity? = context as? FragmentActivity
+                                var c = context
+                                while (act == null && c is ContextWrapper) {
+                                    if (c is FragmentActivity) {
+                                        act = c
+                                    }
+                                    c = c.baseContext
+                                }
+
+                                if (act != null) {
+                                    BiometricAuthManager.promptBiometric(
+                                        activity = act,
+                                        title = "Biometric Diagnostic Test",
+                                        subtitle = "Testing sensor hardware and Keystore integrity",
+                                        description = "BiometricPrompt API test passed successfully",
+                                        onResult = { result ->
+                                            when (result) {
+                                                is BiometricAuthResult.Success -> {
+                                                    Toast.makeText(context, "Biometric authentication verified!", Toast.LENGTH_SHORT).show()
+                                                }
+                                                is BiometricAuthResult.Cancelled -> {
+                                                    Toast.makeText(context, "Test cancelled", Toast.LENGTH_SHORT).show()
+                                                }
+                                                is BiometricAuthResult.Error -> {
+                                                    Toast.makeText(context, "Biometric error: ${result.errString}", Toast.LENGTH_SHORT).show()
+                                                }
+                                                is BiometricAuthResult.Failed -> {
+                                                    Toast.makeText(context, "Biometric not recognized. Please retry.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }
+                                    )
+                                } else {
+                                    Toast.makeText(context, "Biometric status: ${biometricStatus.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(42.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = CyanNeon, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Test Biometric Sensor & PIN", color = CyanNeon, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

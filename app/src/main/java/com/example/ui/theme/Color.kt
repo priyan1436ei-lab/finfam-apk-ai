@@ -31,3 +31,20 @@ val TextPrimary = Color(0xFFFFFFFF)
 val TextSecondary = Color(0xFF94A3B8)
 val TextMuted = Color(0xFF64748B)
 val TextDark = Color(0xFF0F172A)
+
+// Canvas & UI Aliases
+val DarkNavyCanvas = Color(0xFF050816)
+val DarkNavySurface = Color(0xFF0E1528)
+val DarkNavyElevated = Color(0xFF141E38)
+val GrayBorder = Color(0x33FFFFFF)
+val GrayMuted = Color(0xFF94A3B8)
+
+// Glassmorphic Transparency Layers & Ambient Glows
+val GlassSurfaceDark = Color(0xD90E1528)        // 85% alpha dark surface
+val GlassSurfaceElevated = Color(0xE6141E38)    // 90% alpha elevated navy
+val GlassSurfaceFrosted = Color(0x24FFFFFF)     // 14% frosted white highlight
+val GlassSurfaceFrostedSubtle = Color(0x12FFFFFF) // 7% subtle frosted fill
+val GlassBorderTopSheen = Color(0x55FFFFFF)     // 33% top reflection edge
+val GlassBorderSubtle = Color(0x1FFFFFFF)       // 12% subtle glass border
+val GlassAmbientShadow = Color(0x66000000)      // Soft ambient shadow
+

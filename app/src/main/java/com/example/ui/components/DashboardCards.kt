@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Visibility
@@ -68,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -92,6 +94,13 @@ import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceGlow
 import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.GlassAmbientShadow
+import com.example.ui.theme.GlassBorderSubtle
+import com.example.ui.theme.GlassBorderTopSheen
+import com.example.ui.theme.GlassSurfaceDark
+import com.example.ui.theme.GlassSurfaceElevated
+import com.example.ui.theme.GlassSurfaceFrosted
+import com.example.ui.theme.GlassSurfaceFrostedSubtle
 import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.PrimaryBlueGlow
 import com.example.ui.theme.SecondaryViolet
@@ -116,16 +125,33 @@ fun VaultCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .shadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(24.dp),
+                ambientColor = PrimaryBlue.copy(alpha = 0.25f),
+                spotColor = GlassAmbientShadow
+            )
+            .clip(RoundedCornerShape(24.dp))
             .background(
-                Brush.verticalGradient(
+                Brush.linearGradient(
                     colors = listOf(
-                        PrimaryBlue.copy(alpha = 0.22f),
-                        DarkSurfaceVariant
+                        PrimaryBlue.copy(alpha = 0.28f),
+                        GlassSurfaceElevated,
+                        GlassSurfaceDark
                     )
                 )
             )
-            .border(1.dp, BorderGlass, RoundedCornerShape(22.dp))
+            .border(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        GlassBorderTopSheen,
+                        CyanNeon.copy(alpha = 0.35f),
+                        BorderGlass
+                    )
+                ),
+                RoundedCornerShape(24.dp)
+            )
             .padding(20.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -206,10 +232,19 @@ fun VaultCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(DarkSurface)
-                    .border(1.dp, BorderGlassLight, RoundedCornerShape(14.dp))
-                    .padding(12.dp),
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(GlassSurfaceDark.copy(alpha = 0.75f))
+                    .border(
+                        1.dp,
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0x33FFFFFF),
+                                Color(0x10FFFFFF)
+                            )
+                        ),
+                        RoundedCornerShape(16.dp)
+                    )
+                    .padding(14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 // Inflow
@@ -282,9 +317,33 @@ fun HealthScoreCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(DarkSurfaceVariant)
-            .border(1.dp, BorderGlass, RoundedCornerShape(22.dp))
+            .shadow(
+                elevation = 10.dp,
+                shape = RoundedCornerShape(24.dp),
+                ambientColor = SecondaryViolet.copy(alpha = 0.2f),
+                spotColor = GlassAmbientShadow
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        SecondaryViolet.copy(alpha = 0.16f),
+                        GlassSurfaceElevated,
+                        GlassSurfaceDark
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        GlassBorderTopSheen,
+                        SecondaryViolet.copy(alpha = 0.35f),
+                        BorderGlass
+                    )
+                ),
+                RoundedCornerShape(24.dp)
+            )
             .padding(18.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -366,22 +425,34 @@ fun HealthScoreCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // AI Insight Text
-            Text(
-                text = "✨ " + health.aiSummary,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = TextSecondary,
-                    lineHeight = 18.sp
+            // AI Insight Text in Glass Box
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(GlassSurfaceFrostedSubtle)
+                    .border(1.dp, BorderGlass, RoundedCornerShape(14.dp))
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = "✨ " + health.aiSummary,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = TextSecondary,
+                        lineHeight = 18.sp
+                    )
                 )
-            )
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
             Button(
                 onClick = onViewAnalysisClick,
-                modifier = Modifier.fillMaxWidth().height(42.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = DarkSurface)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .border(1.dp, BorderGlassLight, RoundedCornerShape(14.dp)),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassSurfaceDark)
             ) {
                 Row(
                     horizontalArrangement = Arrangement.Center,
@@ -389,7 +460,7 @@ fun HealthScoreCard(
                 ) {
                     Text("View Detailed 7-Pillar Breakdown", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = CyanNeon, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -407,24 +478,65 @@ fun QuickActionsGrid(
     onPayBillClick: () -> Unit,
     onAddGoalClick: () -> Unit,
     onFamilyWalletClick: () -> Unit,
+    onTransferClick: () -> Unit = {},
+    onFinFamPayClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = "QUICK ACTIONS",
-            style = MaterialTheme.typography.labelSmall.copy(
-                color = TextMuted,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "QUICK ACTIONS",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = TextMuted,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
             )
-        )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { onFinFamPayClick() }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(CyanNeon)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "FinFam Pay →",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = CyanNeon
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            QuickActionButton(
+                label = "Pay",
+                icon = Icons.Default.Payment,
+                color = CyanNeon,
+                onClick = onFinFamPayClick,
+                modifier = Modifier.weight(1f)
+            )
+            QuickActionButton(
+                label = "Transfer",
+                icon = Icons.Default.SyncAlt,
+                color = PrimaryBlue,
+                onClick = onTransferClick,
+                modifier = Modifier.weight(1f)
+            )
             QuickActionButton(
                 label = "+ Expense",
                 icon = Icons.Default.Receipt,
@@ -437,13 +549,6 @@ fun QuickActionsGrid(
                 icon = Icons.Default.TrendingUp,
                 color = SuccessGreen,
                 onClick = onAddIncomeClick,
-                modifier = Modifier.weight(1f)
-            )
-            QuickActionButton(
-                label = "Scan OCR",
-                icon = Icons.Default.CameraAlt,
-                color = PrimaryBlue,
-                onClick = onScanReceiptClick,
                 modifier = Modifier.weight(1f)
             )
             QuickActionButton(
@@ -467,9 +572,31 @@ fun QuickActionButton(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(DarkSurfaceVariant)
-            .border(1.dp, BorderGlassLight, RoundedCornerShape(14.dp))
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(18.dp),
+                ambientColor = color.copy(alpha = 0.22f),
+                spotColor = GlassAmbientShadow
+            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        GlassSurfaceElevated,
+                        GlassSurfaceDark
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        color.copy(alpha = 0.5f),
+                        BorderGlass
+                    )
+                ),
+                RoundedCornerShape(18.dp)
+            )
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -477,9 +604,17 @@ fun QuickActionButton(
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(38.dp)
                 .clip(CircleShape)
-                .background(color.copy(alpha = 0.15f)),
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            color.copy(alpha = 0.28f),
+                            color.copy(alpha = 0.08f)
+                        )
+                    )
+                )
+                .border(1.dp, color.copy(alpha = 0.35f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(imageVector = icon, contentDescription = label, tint = color, modifier = Modifier.size(18.dp))
@@ -523,7 +658,7 @@ fun BudgetUtilizationSection(
                 text = "+ Add Budget",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = PrimaryBlue,
+                color = CyanNeon,
                 modifier = Modifier.clickable(onClick = onAddBudgetClick)
             )
         }
@@ -534,8 +669,10 @@ fun BudgetUtilizationSection(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(DarkSurface)
+                    .shadow(4.dp, RoundedCornerShape(18.dp), spotColor = GlassAmbientShadow)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(GlassSurfaceDark)
+                    .border(1.dp, BorderGlass, RoundedCornerShape(18.dp))
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -568,10 +705,31 @@ fun BudgetCard(
 
     Box(
         modifier = modifier
-            .width(180.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkSurfaceVariant)
-            .border(1.dp, if (util >= 0.9f) barColor.copy(alpha = 0.5f) else BorderGlass, RoundedCornerShape(16.dp))
+            .width(184.dp)
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(20.dp),
+                ambientColor = if (util >= 0.9f) barColor.copy(alpha = 0.2f) else Color(0x33000000),
+                spotColor = GlassAmbientShadow
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        GlassSurfaceElevated,
+                        GlassSurfaceDark
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                if (util >= 0.9f) {
+                    Brush.verticalGradient(listOf(barColor.copy(alpha = 0.7f), barColor.copy(alpha = 0.25f)))
+                } else {
+                    Brush.linearGradient(listOf(Color(0x38FFFFFF), BorderGlass))
+                },
+                RoundedCornerShape(20.dp)
+            )
             .clickable(onClick = onClick)
             .padding(14.dp)
     ) {
@@ -594,6 +752,7 @@ fun BudgetCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(DangerRed.copy(alpha = 0.2f))
+                            .border(1.dp, DangerRed.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
                             .padding(horizontal = 5.dp, vertical = 2.dp)
                     ) {
                         Text(if (util >= 1.0f) "EXCEEDED" else "ALERT 90%", fontSize = 9.sp, color = DangerRed, fontWeight = FontWeight.Bold)
@@ -660,7 +819,7 @@ fun UpcomingBillsSection(
                 text = "+ Add Bill",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = PrimaryBlue,
+                color = CyanNeon,
                 modifier = Modifier.clickable(onClick = onAddBillClick)
             )
         }
@@ -683,9 +842,31 @@ fun BillRowItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(DarkSurfaceVariant)
-            .border(1.dp, BorderGlassLight, RoundedCornerShape(14.dp))
+            .shadow(
+                elevation = 5.dp,
+                shape = RoundedCornerShape(18.dp),
+                ambientColor = Color(0x28000000),
+                spotColor = GlassAmbientShadow
+            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.horizontalGradient(
+                    colors = listOf(
+                        GlassSurfaceElevated,
+                        GlassSurfaceDark
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        Color(0x33FFFFFF),
+                        BorderGlass
+                    )
+                ),
+                RoundedCornerShape(18.dp)
+            )
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -695,7 +876,8 @@ fun BillRowItem(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(WarningAmber.copy(alpha = 0.15f)),
+                    .background(WarningAmber.copy(alpha = 0.15f))
+                    .border(1.dp, WarningAmber.copy(alpha = 0.3f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.Bolt, contentDescription = null, tint = WarningAmber, modifier = Modifier.size(20.dp))
@@ -750,7 +932,7 @@ fun GoalsSection(
                 text = "+ Add Goal",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = PrimaryBlue,
+                color = CyanNeon,
                 modifier = Modifier.clickable(onClick = onAddGoalClick)
             )
         }
@@ -778,9 +960,31 @@ fun GoalCard(
     Box(
         modifier = modifier
             .width(200.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkSurfaceVariant)
-            .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(20.dp),
+                ambientColor = CyanNeon.copy(alpha = 0.15f),
+                spotColor = GlassAmbientShadow
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        GlassSurfaceElevated,
+                        GlassSurfaceDark
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        CyanNeon.copy(alpha = 0.35f),
+                        BorderGlass
+                    )
+                ),
+                RoundedCornerShape(20.dp)
+            )
             .clickable(onClick = onClick)
             .padding(14.dp)
     ) {
@@ -796,6 +1000,7 @@ fun GoalCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(PrimaryBlue.copy(alpha = 0.2f))
+                            .border(1.dp, PrimaryBlue.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text("FAMILY", fontSize = 9.sp, color = PrimaryBlue, fontWeight = FontWeight.Bold)
@@ -864,9 +1069,31 @@ fun TransactionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(DarkSurfaceVariant)
-            .border(1.dp, BorderGlassLight, RoundedCornerShape(14.dp))
+            .shadow(
+                elevation = 4.dp,
+                shape = RoundedCornerShape(18.dp),
+                ambientColor = Color(0x22000000),
+                spotColor = GlassAmbientShadow
+            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.horizontalGradient(
+                    colors = listOf(
+                        GlassSurfaceElevated,
+                        GlassSurfaceDark
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        Color(0x2EFFFFFF),
+                        BorderGlass
+                    )
+                ),
+                RoundedCornerShape(18.dp)
+            )
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -879,7 +1106,12 @@ fun TransactionRow(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (isCredit) SuccessGreen.copy(alpha = 0.15f) else PrimaryBlue.copy(alpha = 0.15f)),
+                    .background(if (isCredit) SuccessGreen.copy(alpha = 0.15f) else PrimaryBlue.copy(alpha = 0.15f))
+                    .border(
+                        1.dp,
+                        if (isCredit) SuccessGreen.copy(alpha = 0.3f) else PrimaryBlue.copy(alpha = 0.3f),
+                        RoundedCornerShape(10.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -914,6 +1146,7 @@ fun TransactionRow(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(SecondaryViolet.copy(alpha = 0.2f))
+                                .border(1.dp, SecondaryViolet.copy(alpha = 0.35f), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 4.dp, vertical = 1.dp)
                         ) {
                             Text("Family", fontSize = 9.sp, color = SecondaryViolet, fontWeight = FontWeight.Bold)
@@ -946,3 +1179,4 @@ fun TransactionRow(
         }
     }
 }
+

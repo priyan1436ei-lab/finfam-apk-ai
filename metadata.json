@@ -1,6 +1,6 @@
 {
   "name": "FinFam",
-  "description": "Complete Family Financial Management & Wealth app with Razorpay Payment Gateway, AI Financial Coach, Budgeting, Bills, and Health Score.",
+  "description": "Family Financial Management & Wealth app with Interactive Smart EMI Calculator & Amortization Engine, Monthly Spending Trends Line Charts, Biometric Auth Security, UPI Intent Gateway, EMI Manager, and Room Database.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

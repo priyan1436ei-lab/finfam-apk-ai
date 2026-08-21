@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.example.data.local.model.BillEntity
 import com.example.data.local.model.BudgetEntity
+import com.example.data.local.model.EmiEntity
 import com.example.data.local.model.FamilyMemberEntity
 import com.example.data.local.model.GoalEntity
 import com.example.data.local.model.PaymentOrderEntity
@@ -174,3 +175,25 @@ interface ScanHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertScan(scan: ScanHistoryEntity): Long
 }
+
+@Dao
+interface EmiDao {
+    @Query("SELECT * FROM emis ORDER BY id ASC")
+    fun getAllEmis(): Flow<List<EmiEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEmi(emi: EmiEntity): Long
+
+    @Update
+    suspend fun updateEmi(emi: EmiEntity)
+
+    @Delete
+    suspend fun deleteEmi(emi: EmiEntity)
+
+    @Query("UPDATE emis SET paidAmount = paidAmount + :amount, paidTenureMonths = paidTenureMonths + 1, isPaidThisMonth = 1, lastPaymentDate = :date WHERE id = :emiId")
+    suspend fun recordEmiPayment(emiId: Long, amount: Double, date: String)
+
+    @Query("DELETE FROM emis WHERE id = :id")
+    suspend fun deleteEmiById(id: Long)
+}
+

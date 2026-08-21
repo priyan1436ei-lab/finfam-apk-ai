@@ -1,9 +1,9 @@
 package com.example
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,20 +22,24 @@ import com.example.ui.PaymentViewModel
 import com.example.ui.components.FinFamBottomNavBar
 import com.example.ui.screens.AiAdvisorScreen
 import com.example.ui.screens.AnalyticsScreen
+import com.example.ui.screens.EmiCalculatorScreen
+import com.example.ui.screens.EmiManagerScreen
 import com.example.ui.screens.FamilyAndBillsScreen
 import com.example.ui.screens.GoalsAndBudgetsScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LoginScreen
+import com.example.ui.screens.MonthlySpendingTrendsScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PaymentPortalScreen
 import com.example.ui.screens.PaymentScreen
 import com.example.ui.screens.ProfileScreen
+import com.example.ui.screens.RealTimeDataTransferScreen
 import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.FinGuardTheme
 import com.razorpay.PaymentData
 import com.razorpay.PaymentResultWithDataListener
 
-class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
+class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
 
     private lateinit var paymentViewModel: PaymentViewModel
 
@@ -73,7 +77,7 @@ fun FinFamApp(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "splash"
 
-    val bottomNavRoutes = setOf("home", "analytics", "goals", "family", "advisor")
+    val bottomNavRoutes = setOf("home", "payment_gateway", "pay", "payment", "analytics", "goals", "family", "advisor")
     val showBottomBar = currentRoute in bottomNavRoutes
 
     Scaffold(
@@ -178,6 +182,20 @@ fun FinFamApp(
                 )
             }
 
+            composable("emi") {
+                EmiManagerScreen(
+                    viewModel = viewModel,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
+
+            composable("emi_calculator") {
+                EmiCalculatorScreen(
+                    viewModel = viewModel,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
+
             composable("payment") {
                 PaymentScreen(
                     paymentViewModel = paymentViewModel,
@@ -185,8 +203,43 @@ fun FinFamApp(
                 )
             }
 
+            composable("payment_gateway") {
+                PaymentScreen(
+                    paymentViewModel = paymentViewModel,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
+
+            composable("pay") {
+                PaymentScreen(
+                    paymentViewModel = paymentViewModel,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
+
+            composable("trends") {
+                MonthlySpendingTrendsScreen(
+                    viewModel = viewModel,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
+
             composable("profile") {
                 ProfileScreen(
+                    viewModel = viewModel,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
+
+            composable("transfer") {
+                RealTimeDataTransferScreen(
+                    viewModel = viewModel,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
+
+            composable("real_time_transfer") {
+                RealTimeDataTransferScreen(
                     viewModel = viewModel,
                     onNavigate = { route -> navController.navigate(route) }
                 )

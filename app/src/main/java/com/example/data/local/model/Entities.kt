@@ -88,11 +88,40 @@ data class BillEntity(
 data class FamilyMemberEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val role: String = "Member", // Admin, Parent, Member
+    val role: String = "Member", // Father, Mother, Son, Daughter, Admin, Parent, Member
     val email: String,
     val avatarColor: String = "0xFF3B82F6",
     val monthlyContribution: Double = 0.0,
-    val spentThisMonth: Double = 0.0
+    val spentThisMonth: Double = 0.0,
+    // Incomes
+    val salaryIncome: Double = 0.0,
+    val freelanceIncome: Double = 0.0,
+    val businessIncome: Double = 0.0,
+    val rentalIncome: Double = 0.0,
+    val otherIncome: Double = 0.0,
+    // Expenses
+    val foodExpense: Double = 0.0,
+    val transportExpense: Double = 0.0,
+    val shoppingExpense: Double = 0.0,
+    val educationExpense: Double = 0.0,
+    val healthExpense: Double = 0.0,
+    val entertainmentExpense: Double = 0.0,
+    // Savings
+    val bankSavings: Double = 0.0,
+    val emergencyFund: Double = 0.0,
+    val fixedDeposit: Double = 0.0,
+    val mutualFund: Double = 0.0,
+    // Debt & EMI
+    val monthlyEmi: Double = 0.0,
+    // Investments
+    val equityInvestments: Double = 0.0,
+    val goldInvestments: Double = 0.0,
+    val ppfInvestments: Double = 0.0,
+    // Interest Income
+    val fdInterest: Double = 0.0,
+    val rdInterest: Double = 0.0,
+    val savingsInterest: Double = 0.0,
+    val investmentReturns: Double = 0.0
 )
 
 @Entity(tableName = "payment_orders")
@@ -127,3 +156,24 @@ data class ScanHistoryEntity(
     val confidenceScore: Int = 95,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "emis")
+data class EmiEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val category: String = "Vehicle", // Vehicle, Electronics, Mobile, Education, Personal, Home
+    val totalAmount: Double,
+    val paidAmount: Double,
+    val monthlyEmi: Double,
+    val interestRate: Double = 0.0,
+    val totalTenureMonths: Int,
+    val paidTenureMonths: Int,
+    val dueDate: String = "05th of every month",
+    val dueDayOfMonth: Int = 5,
+    val lenderBank: String = "HDFC Bank",
+    val isAutoDebit: Boolean = true,
+    val isPaidThisMonth: Boolean = false,
+    val lastPaymentDate: String? = null,
+    val iconName: String = "two_wheeler"
+)
+

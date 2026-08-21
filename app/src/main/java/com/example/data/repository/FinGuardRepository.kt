@@ -3,6 +3,7 @@ package com.example.data.repository
 import com.example.data.local.AppDatabase
 import com.example.data.local.model.BillEntity
 import com.example.data.local.model.BudgetEntity
+import com.example.data.local.model.EmiEntity
 import com.example.data.local.model.FamilyMemberEntity
 import com.example.data.local.model.GoalEntity
 import com.example.data.local.model.PaymentOrderEntity
@@ -11,6 +12,7 @@ import com.example.data.local.model.TransactionEntity
 import com.example.data.local.model.UserProfileEntity
 import com.example.domain.model.BillItem
 import com.example.domain.model.BudgetItem
+import com.example.domain.model.EmiItem
 import com.example.domain.model.FamilyMemberItem
 import com.example.domain.model.GoalItem
 import com.example.domain.model.TransactionItem
@@ -128,12 +130,58 @@ class FinGuardRepository(private val database: AppDatabase) {
                 email = entity.email,
                 avatarColor = entity.avatarColor,
                 monthlyContribution = entity.monthlyContribution,
-                spentThisMonth = entity.spentThisMonth
+                spentThisMonth = entity.spentThisMonth,
+                salaryIncome = entity.salaryIncome,
+                freelanceIncome = entity.freelanceIncome,
+                businessIncome = entity.businessIncome,
+                rentalIncome = entity.rentalIncome,
+                otherIncome = entity.otherIncome,
+                foodExpense = entity.foodExpense,
+                transportExpense = entity.transportExpense,
+                shoppingExpense = entity.shoppingExpense,
+                educationExpense = entity.educationExpense,
+                healthExpense = entity.healthExpense,
+                entertainmentExpense = entity.entertainmentExpense,
+                bankSavings = entity.bankSavings,
+                emergencyFund = entity.emergencyFund,
+                fixedDeposit = entity.fixedDeposit,
+                mutualFund = entity.mutualFund,
+                monthlyEmi = entity.monthlyEmi,
+                equityInvestments = entity.equityInvestments,
+                goldInvestments = entity.goldInvestments,
+                ppfInvestments = entity.ppfInvestments,
+                fdInterest = entity.fdInterest,
+                rdInterest = entity.rdInterest,
+                savingsInterest = entity.savingsInterest,
+                investmentReturns = entity.investmentReturns
             )
         }
     }
 
     val paymentOrders: Flow<List<PaymentOrderEntity>> = database.paymentOrderDao().getAllOrders()
+
+    val emis: Flow<List<EmiItem>> = database.emiDao().getAllEmis().map { list ->
+        list.map { entity ->
+            EmiItem(
+                id = entity.id,
+                title = entity.title,
+                category = entity.category,
+                totalAmount = entity.totalAmount,
+                paidAmount = entity.paidAmount,
+                monthlyEmi = entity.monthlyEmi,
+                interestRate = entity.interestRate,
+                totalTenureMonths = entity.totalTenureMonths,
+                paidTenureMonths = entity.paidTenureMonths,
+                dueDate = entity.dueDate,
+                dueDayOfMonth = entity.dueDayOfMonth,
+                lenderBank = entity.lenderBank,
+                isAutoDebit = entity.isAutoDebit,
+                isPaidThisMonth = entity.isPaidThisMonth,
+                lastPaymentDate = entity.lastPaymentDate,
+                iconName = entity.iconName
+            )
+        }
+    }
 
     suspend fun addTransaction(
         title: String,
@@ -276,15 +324,116 @@ class FinGuardRepository(private val database: AppDatabase) {
         database.billDao().deleteBill(BillEntity(id = id, name = "", amount = 0.0, dueDate = "", dueTimestamp = 0))
     }
 
-    suspend fun addFamilyMember(name: String, role: String, email: String) {
+    suspend fun addFamilyMember(
+        name: String,
+        role: String,
+        email: String,
+        monthlyContribution: Double = 0.0,
+        spentThisMonth: Double = 0.0,
+        salaryIncome: Double = 0.0,
+        freelanceIncome: Double = 0.0,
+        businessIncome: Double = 0.0,
+        rentalIncome: Double = 0.0,
+        otherIncome: Double = 0.0,
+        foodExpense: Double = 0.0,
+        transportExpense: Double = 0.0,
+        shoppingExpense: Double = 0.0,
+        educationExpense: Double = 0.0,
+        healthExpense: Double = 0.0,
+        entertainmentExpense: Double = 0.0,
+        bankSavings: Double = 0.0,
+        emergencyFund: Double = 0.0,
+        fixedDeposit: Double = 0.0,
+        mutualFund: Double = 0.0,
+        monthlyEmi: Double = 0.0,
+        equityInvestments: Double = 0.0,
+        goldInvestments: Double = 0.0,
+        ppfInvestments: Double = 0.0,
+        fdInterest: Double = 0.0,
+        rdInterest: Double = 0.0,
+        savingsInterest: Double = 0.0,
+        investmentReturns: Double = 0.0,
+        avatarColor: String = "0xFF3B82F6"
+    ) {
         database.familyMemberDao().insertMember(
             FamilyMemberEntity(
                 name = name,
                 role = role,
                 email = email,
-                avatarColor = "0xFF3B82F6",
-                monthlyContribution = 0.0,
-                spentThisMonth = 0.0
+                avatarColor = avatarColor,
+                monthlyContribution = if (monthlyContribution > 0) monthlyContribution else (salaryIncome + businessIncome + freelanceIncome + rentalIncome + otherIncome),
+                spentThisMonth = if (spentThisMonth > 0) spentThisMonth else (foodExpense + transportExpense + shoppingExpense + educationExpense + healthExpense + entertainmentExpense),
+                salaryIncome = salaryIncome,
+                freelanceIncome = freelanceIncome,
+                businessIncome = businessIncome,
+                rentalIncome = rentalIncome,
+                otherIncome = otherIncome,
+                foodExpense = foodExpense,
+                transportExpense = transportExpense,
+                shoppingExpense = shoppingExpense,
+                educationExpense = educationExpense,
+                healthExpense = healthExpense,
+                entertainmentExpense = entertainmentExpense,
+                bankSavings = bankSavings,
+                emergencyFund = emergencyFund,
+                fixedDeposit = fixedDeposit,
+                mutualFund = mutualFund,
+                monthlyEmi = monthlyEmi,
+                equityInvestments = equityInvestments,
+                goldInvestments = goldInvestments,
+                ppfInvestments = ppfInvestments,
+                fdInterest = fdInterest,
+                rdInterest = rdInterest,
+                savingsInterest = savingsInterest,
+                investmentReturns = investmentReturns
+            )
+        )
+    }
+
+    suspend fun updateFamilyMember(member: FamilyMemberItem) {
+        database.familyMemberDao().updateMember(
+            FamilyMemberEntity(
+                id = member.id,
+                name = member.name,
+                role = member.role,
+                email = member.email,
+                avatarColor = member.avatarColor,
+                monthlyContribution = member.monthlyContribution,
+                spentThisMonth = member.spentThisMonth,
+                salaryIncome = member.salaryIncome,
+                freelanceIncome = member.freelanceIncome,
+                businessIncome = member.businessIncome,
+                rentalIncome = member.rentalIncome,
+                otherIncome = member.otherIncome,
+                foodExpense = member.foodExpense,
+                transportExpense = member.transportExpense,
+                shoppingExpense = member.shoppingExpense,
+                educationExpense = member.educationExpense,
+                healthExpense = member.healthExpense,
+                entertainmentExpense = member.entertainmentExpense,
+                bankSavings = member.bankSavings,
+                emergencyFund = member.emergencyFund,
+                fixedDeposit = member.fixedDeposit,
+                mutualFund = member.mutualFund,
+                monthlyEmi = member.monthlyEmi,
+                equityInvestments = member.equityInvestments,
+                goldInvestments = member.goldInvestments,
+                ppfInvestments = member.ppfInvestments,
+                fdInterest = member.fdInterest,
+                rdInterest = member.rdInterest,
+                savingsInterest = member.savingsInterest,
+                investmentReturns = member.investmentReturns
+            )
+        )
+    }
+
+    suspend fun deleteFamilyMember(id: Long) {
+        database.familyMemberDao().deleteMember(
+            FamilyMemberEntity(
+                id = id,
+                name = "",
+                role = "",
+                email = ""
             )
         )
     }
@@ -300,5 +449,68 @@ class FinGuardRepository(private val database: AppDatabase) {
                 currencySymbol = currencySymbol
             )
         )
+    }
+
+    suspend fun addEmi(
+        title: String,
+        category: String,
+        totalAmount: Double,
+        paidAmount: Double = 0.0,
+        monthlyEmi: Double,
+        interestRate: Double = 0.0,
+        totalTenureMonths: Int,
+        paidTenureMonths: Int = 0,
+        dueDate: String = "05th of every month",
+        dueDayOfMonth: Int = 5,
+        lenderBank: String = "HDFC Bank",
+        isAutoDebit: Boolean = true,
+        iconName: String = "two_wheeler"
+    ) {
+        database.emiDao().insertEmi(
+            EmiEntity(
+                title = title,
+                category = category,
+                totalAmount = totalAmount,
+                paidAmount = paidAmount,
+                monthlyEmi = monthlyEmi,
+                interestRate = interestRate,
+                totalTenureMonths = totalTenureMonths,
+                paidTenureMonths = paidTenureMonths,
+                dueDate = dueDate,
+                dueDayOfMonth = dueDayOfMonth,
+                lenderBank = lenderBank,
+                isAutoDebit = isAutoDebit,
+                isPaidThisMonth = false,
+                iconName = iconName
+            )
+        )
+    }
+
+    suspend fun recordEmiPayment(emiId: Long, emiTitle: String, amount: Double, paymentMethod: String = "UPI") {
+        database.emiDao().recordEmiPayment(emiId, amount, "Today, Just now")
+        database.transactionDao().insertTransaction(
+            TransactionEntity(
+                title = "EMI Payment: $emiTitle",
+                category = "Bills",
+                amount = amount,
+                type = "EXPENSE",
+                isCredit = false,
+                date = "Today, Just now",
+                timestamp = System.currentTimeMillis(),
+                paymentMethod = paymentMethod,
+                notes = "Auto-recorded installment settlement",
+                iconName = "account_balance"
+            )
+        )
+        // Also update budget for bills
+        database.budgetDao().addSpendingToCategory("Bills & Utilities", amount)
+    }
+
+    suspend fun updateEmi(emi: EmiEntity) {
+        database.emiDao().updateEmi(emi)
+    }
+
+    suspend fun deleteEmi(id: Long) {
+        database.emiDao().deleteEmiById(id)
     }
 }

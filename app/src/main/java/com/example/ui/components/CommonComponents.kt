@@ -278,7 +278,18 @@ fun FinFamBottomNavBar(
                     onClick = { onNavigate("home") }
                 )
 
-                // 2. Analytics
+                // 2. Pay (FinFam Pay Gateway)
+                BottomNavItem(
+                    title = "Pay",
+                    icon = Icons.Default.Payment,
+                    isSelected = currentRoute == "payment_gateway" || currentRoute == "pay",
+                    onClick = { onNavigate("payment_gateway") }
+                )
+
+                // Center placeholder space for elevated FAB
+                Spacer(modifier = Modifier.width(52.dp))
+
+                // 4. Trends
                 BottomNavItem(
                     title = "Trends",
                     icon = Icons.Default.PieChart,
@@ -286,23 +297,12 @@ fun FinFamBottomNavBar(
                     onClick = { onNavigate("analytics") }
                 )
 
-                // Center placeholder space for elevated FAB
-                Spacer(modifier = Modifier.width(56.dp))
-
-                // 4. Family & Bills
+                // 5. Family
                 BottomNavItem(
                     title = "Family",
                     icon = Icons.Default.Group,
                     isSelected = currentRoute == "family",
                     onClick = { onNavigate("family") }
-                )
-
-                // 5. AI Coach
-                BottomNavItem(
-                    title = "AI Coach",
-                    icon = Icons.Default.AutoAwesome,
-                    isSelected = currentRoute == "advisor",
-                    onClick = { onNavigate("advisor") }
                 )
             }
         }

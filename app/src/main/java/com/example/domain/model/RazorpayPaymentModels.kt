@@ -13,12 +13,12 @@ enum class SubscriptionPlanTier(
     val features: List<String>
 ) {
     MONTHLY_PRO(
-        planId = "premium_monthly",
+        planId = "premium_monthly_99",
         title = "FinFam Premium Monthly",
-        priceInr = 199.0,
+        priceInr = 99.0,
         billingCycle = "/ Month",
-        discountBadge = null,
-        savingsText = null,
+        discountBadge = "ESSENTIAL",
+        savingsText = "Billed monthly • Cancel anytime",
         features = listOf(
             "AI Financial Coach & Predictive Budgeting",
             "Unlimited Smart Receipt OCR Scanning",
@@ -28,26 +28,58 @@ enum class SubscriptionPlanTier(
             "Real-Time UPI Scam Shield Audit"
         )
     ),
-    ANNUAL_ELITE(
-        planId = "premium_annual",
-        title = "FinFam Premium Annual",
-        priceInr = 1499.0,
-        billingCycle = "/ Year",
-        discountBadge = "SAVE ₹889 (37%)",
-        savingsText = "Save ₹889/yr (37% savings vs Monthly)",
+    QUARTERLY_PRO(
+        planId = "premium_quarterly_249",
+        title = "FinFam Premium Quarterly",
+        priceInr = 249.0,
+        billingCycle = "/ 3 Months",
+        discountBadge = "POPULAR",
+        savingsText = "Save ₹48 vs monthly plan",
         features = listOf(
-            "Everything in Premium Monthly Tier",
+            "Everything in Monthly Plan",
+            "Family Vault (Up to 5 Members)",
+            "Gemini 2.0 Flash AI Financial Insights",
+            "Automated Bank & UPI Reconciliation",
+            "Smart Budget Overspend Alerts",
+            "Quarterly CA Tax & Expense Summaries"
+        )
+    ),
+    RUPAY_SPECIAL_499(
+        planId = "premium_rupay_499",
+        title = "FinFam Premium RuPay Special",
+        priceInr = 499.0,
+        billingCycle = "/ 6 Months",
+        discountBadge = "RUPAY SPECIAL (₹499)",
+        savingsText = "Save 20% with RuPay & UPI auto-pay",
+        features = listOf(
+            "Full FinFam Premium Pro Access for 6 Months",
+            "Zero Surcharge on RuPay Debit & Credit Cards",
+            "Instant UPI Intent & Dynamic QR Scan",
+            "AI Financial Coach & Automated Budgeting",
+            "Real-Time UPI Scam Shield & Fraud Protection",
+            "Family Vault Sync (Up to 6 Members)"
+        )
+    ),
+    ANNUAL_ELITE(
+        planId = "premium_annual_799",
+        title = "FinFam Premium Yearly",
+        priceInr = 799.0,
+        billingCycle = "/ Year",
+        discountBadge = "BEST VALUE (Save 33%)",
+        savingsText = "Save ₹389/yr (33% discount)",
+        features = listOf(
+            "Everything in Quarterly Tier",
             "Full Family Wallet (Unlimited Members)",
             "Real-Time Gemini 2.0 Flash AI Financial Coach",
             "Export CA-Ready Tax & Accounting PDF Reports",
-            "Automated Bank & UPI Reconciliation",
-            "Priority 24/7 Dedicated Concierge Support"
+            "Priority 24/7 Dedicated Concierge Support",
+            "VIP Scam Protection & Direct Dispute Assist"
         )
     ),
     LIFETIME_FOUNDER(
         planId = "premium_lifetime",
         title = "FinFam Lifetime Founder Shield",
-        priceInr = 3999.0,
+        priceInr = 1999.0,
         billingCycle = "one-time",
         discountBadge = "LIMITED FOUNDER",
         savingsText = "Pay once, access FinFam Elite forever",
@@ -65,26 +97,28 @@ enum class PaymentMethodType(
     val title: String,
     val subtitle: String,
     val iconName: String,
-    val razorpayMethodCode: String
+    val razorpayMethodCode: String,
+    val isRupay: Boolean = false
 ) {
+    RUPAY_CARD(
+        code = "RUPAY_CARD",
+        title = "RuPay Card (Debit & Credit)",
+        subtitle = "Zero surcharge on all Indian RuPay cards",
+        iconName = "rupay",
+        razorpayMethodCode = "card",
+        isRupay = true
+    ),
     UPI(
         code = "UPI",
-        title = "UPI",
-        subtitle = "Google Pay, PhonePe, Paytm, BHIM, Cred",
-        iconName = "upi",
-        razorpayMethodCode = "upi"
-    ),
-    UPI_INTENT(
-        code = "UPI_INTENT",
-        title = "UPI Direct Intent",
-        subtitle = "Launch Installed UPI App Directly",
+        title = "UPI (GPay, PhonePe, Paytm, BHIM)",
+        subtitle = "Instant zero-fee transfer via any UPI app",
         iconName = "upi",
         razorpayMethodCode = "upi"
     ),
     CARD(
         code = "CARD",
-        title = "Credit / Debit Card",
-        subtitle = "Visa, Mastercard, RuPay, Maestro",
+        title = "Visa / Mastercard / Amex",
+        subtitle = "International & Domestic Credit / Debit Cards",
         iconName = "card",
         razorpayMethodCode = "card"
     ),
@@ -97,19 +131,75 @@ enum class PaymentMethodType(
     ),
     WALLET(
         code = "WALLET",
-        title = "Wallet",
+        title = "Wallets",
         subtitle = "Paytm, PhonePe, Mobikwik, Amazon Pay",
         iconName = "wallet",
         razorpayMethodCode = "wallet"
     ),
     UPI_QR(
         code = "UPI_QR",
-        title = "UPI QR",
-        subtitle = "Scan & Pay instantly from any UPI App",
+        title = "Scan & Pay QR (ZXing)",
+        subtitle = "Scan UPI QR codes with real-time Scam Shield",
         iconName = "qr",
         razorpayMethodCode = "upi"
     )
 }
+
+enum class BillCategoryType(
+    val code: String,
+    val title: String,
+    val iconName: String,
+    val defaultAmount: Double
+) {
+    MOBILE_RECHARGE(
+        code = "MOBILE",
+        title = "Mobile Recharge",
+        iconName = "phone",
+        defaultAmount = 299.0
+    ),
+    ELECTRICITY(
+        code = "ELECTRICITY",
+        title = "Electricity Bill",
+        iconName = "bolt",
+        defaultAmount = 1450.0
+    ),
+    WATER(
+        code = "WATER",
+        title = "Water Utility",
+        iconName = "water",
+        defaultAmount = 380.0
+    ),
+    GAS(
+        code = "GAS",
+        title = "Piped Gas / LPG",
+        iconName = "gas",
+        defaultAmount = 950.0
+    ),
+    BROADBAND(
+        code = "BROADBAND",
+        title = "Broadband / WiFi",
+        iconName = "wifi",
+        defaultAmount = 799.0
+    ),
+    DTH(
+        code = "DTH",
+        title = "DTH / Cable TV",
+        iconName = "tv",
+        defaultAmount = 350.0
+    )
+}
+
+data class ScannedUpiPayload(
+    val vpa: String,
+    val payeeName: String,
+    val amount: Double?,
+    val note: String?,
+    val transactionRef: String?,
+    val rawQrString: String,
+    val isVerifiedMerchant: Boolean = true,
+    val safetyScore: Int = 98,
+    val riskLevel: String = "SAFE"
+)
 
 enum class PaymentStateEnum {
     CREATED,

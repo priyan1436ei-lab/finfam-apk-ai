@@ -32,12 +32,34 @@ interface PaymentRepository {
         customerPhone: String? = null
     ): Result<CreateOrderResponse>
 
+    suspend fun createCustomOrder(
+        amountInr: Double,
+        description: String = "FinFam Payment",
+        userId: String = "user_priyanshu_sharma",
+        customerEmail: String? = null,
+        customerPhone: String? = null
+    ): Result<CreateOrderResponse>
+
     suspend fun verifyPaymentOnBackend(
         paymentId: String,
         orderId: String,
         signature: String,
         plan: SubscriptionPlanTier,
         paymentMethod: String = "UPI",
+        userId: String = "user_priyanshu_sharma"
+    ): Result<VerifyPaymentResponse>
+
+    suspend fun verifyAndProcessCustomPayment(
+        paymentId: String,
+        orderId: String,
+        signature: String,
+        amountInr: Double,
+        title: String,
+        category: String = "Utilities",
+        paymentMethod: String = "RuPay",
+        note: String = "",
+        isBill: Boolean = false,
+        billId: Long? = null,
         userId: String = "user_priyanshu_sharma"
     ): Result<VerifyPaymentResponse>
 
@@ -52,6 +74,14 @@ interface PaymentRepository {
     suspend fun recordPendingOrder(
         orderId: String,
         plan: SubscriptionPlanTier,
+        methodTitle: String,
+        userId: String = "user_priyanshu_sharma"
+    )
+
+    suspend fun recordCustomPendingOrder(
+        orderId: String,
+        amountInr: Double,
+        title: String,
         methodTitle: String,
         userId: String = "user_priyanshu_sharma"
     )
@@ -72,6 +102,8 @@ class RealPaymentRepository(
     private val paymentOrderDao = database.paymentOrderDao()
     private val userProfileDao = database.userProfileDao()
     private val transactionDao = database.transactionDao()
+    private val budgetDao = database.budgetDao()
+    private val billDao = database.billDao()
 
     override val paymentHistory: Flow<List<PaymentData>> = paymentOrderDao.getAllOrders().map { list ->
         list.map { entity ->
@@ -206,6 +238,111 @@ class RealPaymentRepository(
                 planId = plan.planId,
                 planTitle = plan.title,
                 amount = plan.priceInr,
+                currency = "INR",
+                status = PaymentStateEnum.CREATED.name,
+                paymentMethod = methodTitle,
+                date = dateStr,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+        Unit
+    }
+
+    override suspend fun createCustomOrder(
+        amountInr: Double,
+        description: String,
+        userId: String,
+        customerEmail: String?,
+        customerPhone: String?
+    ): Result<CreateOrderResponse> = withContext(Dispatchers.IO) {
+        backendClient.createCustomOrder(amountInr = amountInr, description = description, userId = userId)
+    }
+
+    override suspend fun verifyAndProcessCustomPayment(
+        paymentId: String,
+        orderId: String,
+        signature: String,
+        amountInr: Double,
+        title: String,
+        category: String,
+        paymentMethod: String,
+        note: String,
+        isBill: Boolean,
+        billId: Long?,
+        userId: String
+    ): Result<VerifyPaymentResponse> = withContext(Dispatchers.IO) {
+        val paidTimestamp = System.currentTimeMillis()
+        val dateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(paidTimestamp))
+
+        // 1. Update payment order
+        paymentOrderDao.updateOrderStatus(
+            orderId = orderId,
+            status = PaymentStateEnum.SUCCESS.name,
+            paymentId = paymentId,
+            signature = signature,
+            paidAt = paidTimestamp
+        )
+
+        // 2. Insert verified transaction into financial ledger
+        transactionDao.insertTransaction(
+            TransactionEntity(
+                id = 0,
+                title = title,
+                category = category,
+                amount = amountInr,
+                type = "EXPENSE",
+                isCredit = false,
+                date = "Today, Just now",
+                timestamp = paidTimestamp,
+                paymentMethod = paymentMethod,
+                notes = if (note.isNotBlank()) note else "Order: $orderId • Ref: $paymentId",
+                iconName = if (isBill) "receipt_long" else "payments",
+                riskStatus = "VERIFIED",
+                memberName = "Priyanshu"
+            )
+        )
+
+        // 3. Auto-update budget spent for this category
+        try {
+            budgetDao.addSpendingToCategory(category, amountInr)
+        } catch (e: Exception) {
+            // Ignore if category budget not set
+        }
+
+        // 4. Mark bill as paid if this was a bill payment
+        if (isBill && billId != null) {
+            billDao.markBillPaymentStatus(billId, true)
+        }
+
+        Result.success(
+            VerifyPaymentResponse(
+                success = true,
+                status = "SUCCESS",
+                paymentId = paymentId,
+                orderId = orderId,
+                validUntil = "N/A",
+                message = "Payment of ₹$amountInr processed and recorded."
+            )
+        )
+    }
+
+    override suspend fun recordCustomPendingOrder(
+        orderId: String,
+        amountInr: Double,
+        title: String,
+        methodTitle: String,
+        userId: String
+    ): Unit = withContext(Dispatchers.IO) {
+        val dateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())
+        paymentOrderDao.insertOrder(
+            PaymentOrderEntity(
+                orderId = orderId,
+                paymentId = null,
+                signature = null,
+                userId = userId,
+                planId = "custom_pay",
+                planTitle = title,
+                amount = amountInr,
                 currency = "INR",
                 status = PaymentStateEnum.CREATED.name,
                 paymentMethod = methodTitle,

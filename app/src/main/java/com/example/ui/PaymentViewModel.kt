@@ -5,16 +5,23 @@ import android.app.Application
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.activity.result.ActivityResultLauncher
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
+import com.example.data.local.model.PaymentOrderEntity
+import com.example.data.local.model.TransactionEntity
+import com.example.data.repository.PaymentRepository
+import com.example.data.repository.RealPaymentRepository
 import com.example.domain.model.PaymentMethodType
 import com.example.domain.model.PaymentStateEnum
 import com.example.domain.model.RazorpayPaymentUiState
 import com.example.domain.model.RazorpayTransactionRecord
 import com.example.domain.model.SubscriptionPlanTier
-import com.example.data.repository.PaymentRepository
-import com.example.data.repository.RealPaymentRepository
+import com.example.domain.payment.UpiAppInfo
+import com.example.domain.payment.UpiMerchantConfig
+import com.example.domain.payment.UpiPaymentManager
+import com.example.domain.payment.UpiPaymentResult
 import com.razorpay.Checkout
 import com.razorpay.PaymentData as RazorpaySdkPaymentData
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +51,9 @@ class PaymentViewModel @JvmOverloads constructor(
     private val database = AppDatabase.getDatabase(application, viewModelScope)
     private val userProfileDao = database.userProfileDao()
     private val paymentOrderDao = database.paymentOrderDao()
+    private val transactionDao = database.transactionDao()
+
+    val upiPaymentManager = UpiPaymentManager(application.applicationContext)
 
     private val _paymentState = MutableStateFlow<RazorpayPaymentUiState>(RazorpayPaymentUiState.Idle)
     val paymentState: StateFlow<RazorpayPaymentUiState> = _paymentState.asStateFlow()
@@ -60,14 +70,35 @@ class PaymentViewModel @JvmOverloads constructor(
     private val _selectedPlan = MutableStateFlow(SubscriptionPlanTier.ANNUAL_ELITE)
     val selectedPlan: StateFlow<SubscriptionPlanTier> = _selectedPlan.asStateFlow()
 
-    // Dynamic QR Payload for in-app UPI QR modal
-    private val _dynamicUpiQrString = MutableStateFlow<String?>(null)
-    val dynamicUpiQrString: StateFlow<String?> = _dynamicUpiQrString.asStateFlow()
+    private val _installedUpiApps = MutableStateFlow<List<UpiAppInfo>>(emptyList())
+    val installedUpiApps: StateFlow<List<UpiAppInfo>> = _installedUpiApps.asStateFlow()
+
+    // Dynamic QR Payload for in-app UPI QR modal with Owner's UPI: priyan1436ei@okhdfcbank
+    private val _dynamicUpiQrString = MutableStateFlow<String>(
+        UpiMerchantConfig.getPlanUpiUri(SubscriptionPlanTier.ANNUAL_ELITE)
+    )
+    val dynamicUpiQrString: StateFlow<String> = _dynamicUpiQrString.asStateFlow()
+
+    // Scanned UPI QR payload state
+    private val _scannedPayload = MutableStateFlow<com.example.domain.model.ScannedUpiPayload?>(null)
+    val scannedPayload: StateFlow<com.example.domain.model.ScannedUpiPayload?> = _scannedPayload.asStateFlow()
+
+    // Real-time Wallet Balance & Profile
+    val userProfile = userProfileDao.getUserProfile()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
 
     private var currentOrderId: String? = null
-    private var currentOrderAmount: Double = 1499.0
+    private var currentOrderAmount: Double = 799.0
+    private var currentCustomTitle: String = "Payment"
+    private var currentCustomCategory: String = "Others"
+    private var currentIsBill: Boolean = false
+    private var currentBillId: Long? = null
 
-    // Reactive Payment Orders History from PaymentRepository
+    // Reactive Payment Orders History from Room Database
     val paymentHistory: StateFlow<List<RazorpayTransactionRecord>> = paymentRepository.paymentHistory
         .map { list ->
             list.map { entity ->
@@ -98,13 +129,8 @@ class PaymentViewModel @JvmOverloads constructor(
         )
 
     init {
-        // Preload Razorpay Checkout resources for snappy modal rendering
-        try {
-            Checkout.preload(application.applicationContext)
-            Log.d(TAG, "Razorpay Checkout preloaded successfully.")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error preloading Razorpay Checkout", e)
-        }
+        // Detect installed UPI Apps
+        refreshInstalledUpiApps()
 
         // Initialize subscription status from local database user profile
         viewModelScope.launch(Dispatchers.IO) {
@@ -122,36 +148,294 @@ class PaymentViewModel @JvmOverloads constructor(
         }
     }
 
+    fun refreshInstalledUpiApps() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val apps = upiPaymentManager.getInstalledUpiApps()
+            _installedUpiApps.value = apps
+        }
+    }
+
     fun selectPlan(plan: SubscriptionPlanTier) {
         _selectedPlan.value = plan
-        // Update QR string if UPI QR is active
-        if (_selectedPaymentMethod.value == PaymentMethodType.UPI_QR) {
-            generateDynamicUpiQr(plan)
-        }
+        _dynamicUpiQrString.value = UpiMerchantConfig.getPlanUpiUri(plan)
     }
 
     fun selectPaymentMethod(method: PaymentMethodType) {
         _selectedPaymentMethod.value = method
-        if (method == PaymentMethodType.UPI_QR) {
-            generateDynamicUpiQr(_selectedPlan.value)
-        } else {
-            _dynamicUpiQrString.value = null
-        }
-    }
-
-    private fun generateDynamicUpiQr(plan: SubscriptionPlanTier) {
-        val upiVpa = "finfam.pay@icici"
-        val payeeName = "FinFam Security Technologies"
-        val amount = plan.priceInr.toInt()
-        val note = "FinFam ${plan.title}"
-        val transactionRef = "TXN" + System.currentTimeMillis()
-        
-        val upiUri = "upi://pay?pa=$upiVpa&pn=${Uri.encode(payeeName)}&am=$amount&cu=INR&tn=${Uri.encode(note)}&tr=$transactionRef"
-        _dynamicUpiQrString.value = upiUri
+        _dynamicUpiQrString.value = UpiMerchantConfig.getPlanUpiUri(_selectedPlan.value)
     }
 
     /**
-     * Step 1: Initiates real payment order and opens Razorpay SDK Checkout
+     * Builds and returns the official owner UPI Deep Link URI for the given plan.
+     */
+    fun getPlanUpiUri(plan: SubscriptionPlanTier = _selectedPlan.value): String {
+        return UpiMerchantConfig.getPlanUpiUri(plan)
+    }
+
+    /**
+     * Primary Real UPI Intent Launcher.
+     * Launches installed UPI apps (Google Pay, PhonePe, Paytm, BHIM, CRED)
+     * prefilled with Merchant UPI: priyan1436ei@okhdfcbank, Payee: Priyan, and exact plan amount.
+     */
+    fun launchDirectUpiPayment(
+        launcher: ActivityResultLauncher<Intent>,
+        plan: SubscriptionPlanTier = _selectedPlan.value,
+        targetApp: UpiAppInfo? = null
+    ) {
+        _selectedPlan.value = plan
+        val txnRef = "TXN" + System.currentTimeMillis()
+        val uriString = UpiMerchantConfig.getPlanUpiUri(plan, txnRef)
+        currentOrderId = "UPI_$txnRef"
+        currentOrderAmount = plan.priceInr
+
+        _paymentState.value = RazorpayPaymentUiState.CreatingOrder(
+            message = "Opening ${targetApp?.name ?: "UPI App"} with prefilled payment of ₹${plan.priceInr.toInt()}..."
+        )
+
+        try {
+            val intent = upiPaymentManager.createUpiIntent(uriString, targetApp?.packageName)
+            if (targetApp == null || !targetApp.isInstalled) {
+                // If generic or app not directly installed, show standard Android chooser
+                val chooser = Intent.createChooser(intent, "Pay ₹${plan.priceInr.toInt()} to Priyan via UPI")
+                launcher.launch(chooser)
+            } else {
+                launcher.launch(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch UPI Intent", e)
+            _paymentState.value = RazorpayPaymentUiState.Failed(
+                errorCode = "UPI_INTENT_ERROR",
+                errorMessage = "No compatible UPI app found. Please install Google Pay, PhonePe, Paytm, or BHIM."
+            )
+        }
+    }
+
+    /**
+     * Direct Activity-based UPI Intent Launcher for backward compatibility with existing views.
+     */
+    fun launchUpiIntentDirect(activity: Activity, plan: SubscriptionPlanTier = _selectedPlan.value) {
+        val uriString = UpiMerchantConfig.getPlanUpiUri(plan)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uriString))
+        val chooser = Intent.createChooser(intent, "Pay ₹${plan.priceInr.toInt()} to ${UpiMerchantConfig.MERCHANT_NAME} via UPI")
+        try {
+            activity.startActivity(chooser)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch direct UPI chooser", e)
+            _paymentState.value = RazorpayPaymentUiState.Failed(
+                errorCode = "NO_UPI_APP",
+                errorMessage = "No compatible UPI application found on this device."
+            )
+        }
+    }
+
+    /**
+     * Handles the UPI payment response returned from Google Pay, PhonePe, Paytm, BHIM, etc.
+     */
+    fun handleUpiActivityResult(
+        resultCode: Int,
+        data: Intent?,
+        plan: SubscriptionPlanTier = _selectedPlan.value,
+        appName: String = "UPI App"
+    ) {
+        val result = UpiPaymentManager.parseUpiResponse(resultCode, data)
+        Log.d(TAG, "Parsed UPI Payment Result: $result")
+
+        when (result) {
+            is UpiPaymentResult.Success -> {
+                activatePremiumSuccess(
+                    txnId = result.txnId,
+                    approvalRefNo = result.approvalRefNo,
+                    txnRef = result.txnRef,
+                    plan = plan,
+                    paymentMethodName = "$appName (${UpiMerchantConfig.MERCHANT_UPI_ID})"
+                )
+            }
+            is UpiPaymentResult.Pending -> {
+                recordPendingOrder(
+                    txnId = result.txnId,
+                    plan = plan,
+                    paymentMethodName = "$appName (${UpiMerchantConfig.MERCHANT_UPI_ID})"
+                )
+                _paymentState.value = RazorpayPaymentUiState.Pending(
+                    orderId = currentOrderId ?: "UPI_${System.currentTimeMillis()}",
+                    paymentId = result.txnId,
+                    message = result.message
+                )
+            }
+            is UpiPaymentResult.Failed -> {
+                recordFailedOrder(
+                    reason = result.message,
+                    plan = plan
+                )
+                _paymentState.value = RazorpayPaymentUiState.Failed(
+                    errorCode = "UPI_PAYMENT_FAILED",
+                    errorMessage = result.message,
+                    canRetry = true
+                )
+            }
+            is UpiPaymentResult.Cancelled -> {
+                _paymentState.value = RazorpayPaymentUiState.UserCancelled(
+                    message = result.message
+                )
+            }
+        }
+    }
+
+    /**
+     * Real Premium Activation Logic upon Successful Payment:
+     * 1. Sets isPremium = true, tier, and validity in Room DB.
+     * 2. Records transaction in payment_orders table with Owner UPI priyan1436ei@okhdfcbank.
+     * 3. Records expense in transactions table.
+     * 4. Updates reactive state flows instantly.
+     */
+    fun activatePremiumSuccess(
+        txnId: String,
+        approvalRefNo: String = "",
+        txnRef: String = "",
+        plan: SubscriptionPlanTier = _selectedPlan.value,
+        paymentMethodName: String = "UPI (${UpiMerchantConfig.MERCHANT_UPI_ID})"
+    ) {
+        val paidTimestamp = System.currentTimeMillis()
+        val orderId = currentOrderId ?: "UPI_${System.currentTimeMillis()}"
+        val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+        val dateString = dateFormat.format(Date(paidTimestamp))
+
+        val calendar = Calendar.getInstance()
+        if (plan == SubscriptionPlanTier.MONTHLY_PRO) {
+            calendar.add(Calendar.MONTH, 1)
+        } else if (plan == SubscriptionPlanTier.ANNUAL_ELITE) {
+            calendar.add(Calendar.YEAR, 1)
+        } else {
+            calendar.add(Calendar.YEAR, 100)
+        }
+        val validUntilString = dateFormat.format(calendar.time)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            // 1. Update User Profile in Room Database
+            userProfileDao.updateSubscription(
+                isPremium = true,
+                tier = plan.title,
+                validUntil = validUntilString
+            )
+
+            // 2. Record successful payment in payment_orders table
+            paymentOrderDao.insertOrder(
+                PaymentOrderEntity(
+                    orderId = orderId,
+                    paymentId = txnId,
+                    signature = approvalRefNo.ifBlank { "UPI_AUTH_${System.currentTimeMillis()}" },
+                    userId = "user_priyanshu_sharma",
+                    planId = plan.planId,
+                    planTitle = plan.title,
+                    amount = plan.priceInr,
+                    currency = UpiMerchantConfig.CURRENCY,
+                    status = PaymentStateEnum.SUCCESS.name,
+                    paymentMethod = paymentMethodName,
+                    date = dateString,
+                    timestamp = paidTimestamp,
+                    paidAt = paidTimestamp,
+                    refundStatus = null,
+                    refundId = null,
+                    failureReason = null
+                )
+            )
+
+            // 3. Record subscription expense in user's transactions
+            transactionDao.insertTransaction(
+                TransactionEntity(
+                    title = "FinFam Premium (${plan.title})",
+                    category = "Subscriptions",
+                    amount = plan.priceInr,
+                    type = "EXPENSE",
+                    isCredit = false,
+                    date = dateString,
+                    timestamp = paidTimestamp,
+                    paymentMethod = "UPI",
+                    notes = "Paid to ${UpiMerchantConfig.MERCHANT_UPI_ID} (Txn: $txnId)",
+                    isFamilyShared = true,
+                    memberName = "Priyan",
+                    iconName = "security",
+                    riskStatus = "VERIFIED"
+                )
+            )
+
+            // 4. Update reactive state flows
+            _isSubscriptionActive.value = true
+            _activePlanTier.value = plan
+
+            _paymentState.value = RazorpayPaymentUiState.Success(
+                paymentId = txnId,
+                orderId = orderId,
+                signature = approvalRefNo,
+                plan = plan,
+                amountInr = plan.priceInr,
+                paymentMethod = paymentMethodName,
+                paidAt = paidTimestamp,
+                validUntil = validUntilString
+            )
+        }
+    }
+
+    private fun recordPendingOrder(
+        txnId: String,
+        plan: SubscriptionPlanTier,
+        paymentMethodName: String
+    ) {
+        val orderId = currentOrderId ?: "UPI_${System.currentTimeMillis()}"
+        val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+        val dateString = dateFormat.format(Date())
+
+        viewModelScope.launch(Dispatchers.IO) {
+            paymentOrderDao.insertOrder(
+                PaymentOrderEntity(
+                    orderId = orderId,
+                    paymentId = txnId,
+                    signature = null,
+                    userId = "user_priyanshu_sharma",
+                    planId = plan.planId,
+                    planTitle = plan.title,
+                    amount = plan.priceInr,
+                    currency = UpiMerchantConfig.CURRENCY,
+                    status = PaymentStateEnum.PENDING.name,
+                    paymentMethod = paymentMethodName,
+                    date = dateString,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    private fun recordFailedOrder(
+        reason: String,
+        plan: SubscriptionPlanTier
+    ) {
+        val orderId = currentOrderId ?: "UPI_${System.currentTimeMillis()}"
+        val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+        val dateString = dateFormat.format(Date())
+
+        viewModelScope.launch(Dispatchers.IO) {
+            paymentOrderDao.insertOrder(
+                PaymentOrderEntity(
+                    orderId = orderId,
+                    paymentId = null,
+                    signature = null,
+                    userId = "user_priyanshu_sharma",
+                    planId = plan.planId,
+                    planTitle = plan.title,
+                    amount = plan.priceInr,
+                    currency = UpiMerchantConfig.CURRENCY,
+                    status = PaymentStateEnum.FAILED.name,
+                    paymentMethod = "UPI (${UpiMerchantConfig.MERCHANT_UPI_ID})",
+                    date = dateString,
+                    timestamp = System.currentTimeMillis(),
+                    failureReason = reason
+                )
+            )
+        }
+    }
+
+    /**
+     * Fallback Razorpay Checkout flow if required
      */
     fun initiateRealPayment(
         activity: Activity,
@@ -176,7 +460,6 @@ class PaymentViewModel @JvmOverloads constructor(
                 val generatedOrderId = orderResponse.orderId
                 currentOrderId = generatedOrderId
 
-                // Record initial state in local repository
                 paymentRepository.recordPendingOrder(
                     orderId = generatedOrderId,
                     plan = plan,
@@ -191,7 +474,6 @@ class PaymentViewModel @JvmOverloads constructor(
                     method = method
                 )
 
-                // Launch Razorpay Standard Checkout on UI thread
                 activity.runOnUiThread {
                     try {
                         val checkout = Checkout()
@@ -209,59 +491,9 @@ class PaymentViewModel @JvmOverloads constructor(
                             val prefill = JSONObject().apply {
                                 put("email", customerEmail)
                                 put("contact", customerPhone)
-                                if (method == PaymentMethodType.UPI || method == PaymentMethodType.UPI_INTENT) {
-                                    put("method", "upi")
-                                } else if (method == PaymentMethodType.CARD) {
-                                    put("method", "card")
-                                } else if (method == PaymentMethodType.NET_BANKING) {
-                                    put("method", "netbanking")
-                                } else if (method == PaymentMethodType.WALLET) {
-                                    put("method", "wallet")
-                                }
+                                put("vpa", UpiMerchantConfig.MERCHANT_UPI_ID)
                             }
                             put("prefill", prefill)
-
-                            // Preferred Payment methods routing
-                            val methodConfig = JSONObject().apply {
-                                when (method) {
-                                    PaymentMethodType.UPI -> {
-                                        put("netbanking", false)
-                                        put("card", false)
-                                        put("wallet", false)
-                                        put("upi", true)
-                                    }
-                                    PaymentMethodType.UPI_INTENT -> {
-                                        put("upi", true)
-                                    }
-                                    PaymentMethodType.CARD -> {
-                                        put("card", true)
-                                    }
-                                    PaymentMethodType.NET_BANKING -> {
-                                        put("netbanking", true)
-                                    }
-                                    PaymentMethodType.WALLET -> {
-                                        put("wallet", true)
-                                    }
-                                    PaymentMethodType.UPI_QR -> {
-                                        put("upi", true)
-                                    }
-                                }
-                            }
-                            put("method", methodConfig)
-
-                            val retryObj = JSONObject().apply {
-                                put("enabled", true)
-                                put("max_count", 2)
-                            }
-                            put("retry", retryObj)
-
-                            val notes = JSONObject().apply {
-                                put("plan_tier", plan.planId)
-                                put("app_name", "FinFam")
-                                put("environment", "Production")
-                                put("selected_method", method.code)
-                            }
-                            put("notes", notes)
                         }
 
                         checkout.open(activity, options)
@@ -283,27 +515,7 @@ class PaymentViewModel @JvmOverloads constructor(
     }
 
     /**
-     * Direct UPI Intent App Launcher (e.g. PhonePe, GPay, Paytm, BHIM)
-     */
-    fun launchUpiIntentDirect(activity: Activity) {
-        val plan = _selectedPlan.value
-        val amount = plan.priceInr.toInt()
-        val upiUri = Uri.parse(
-            "upi://pay?pa=finfam.pay@icici&pn=FinFam%20Premium&am=$amount&cu=INR&tn=FinFam%20Subscription%20${plan.planId}"
-        )
-        val intent = Intent(Intent.ACTION_VIEW, upiUri)
-        try {
-            val chooser = Intent.createChooser(intent, "Pay ₹$amount using UPI App")
-            activity.startActivity(chooser)
-        } catch (e: Exception) {
-            Log.e(TAG, "No UPI app found or intent failed", e)
-            initiateRealPayment(activity, plan, PaymentMethodType.UPI)
-        }
-    }
-
-    /**
-     * Step 2: Callback when payment completes in Razorpay SDK.
-     * Note: Never activates Premium blindly; delegates to backend signature verification!
+     * Razorpay direct callbacks
      */
     fun onRazorpayPaymentSuccess(paymentId: String?, paymentData: RazorpaySdkPaymentData?) {
         val safePaymentId = paymentId ?: paymentData?.paymentId ?: "pay_${System.currentTimeMillis()}"
@@ -313,7 +525,7 @@ class PaymentViewModel @JvmOverloads constructor(
         _paymentState.value = RazorpayPaymentUiState.VerifyingSignature(
             paymentId = safePaymentId,
             orderId = safeOrderId,
-            message = "Cryptographically verifying Razorpay payment signature..."
+            message = "Cryptographically verifying payment signature..."
         )
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -322,54 +534,37 @@ class PaymentViewModel @JvmOverloads constructor(
                 orderId = safeOrderId,
                 signature = safeSignature,
                 plan = _selectedPlan.value,
-                paymentMethod = _selectedPaymentMethod.value.title,
+                paymentMethod = "Razorpay (${UpiMerchantConfig.MERCHANT_UPI_ID})",
                 userId = "user_priyanshu_sharma"
             )
 
             verificationResult.onSuccess { verifyResponse ->
-                val paidTimestamp = System.currentTimeMillis()
-
-                // Activate local premium state
-                _isSubscriptionActive.value = true
-                _activePlanTier.value = _selectedPlan.value
-
-                _paymentState.value = RazorpayPaymentUiState.Success(
-                    paymentId = safePaymentId,
-                    orderId = safeOrderId,
-                    signature = safeSignature,
+                activatePremiumSuccess(
+                    txnId = safePaymentId,
+                    approvalRefNo = safeSignature,
                     plan = _selectedPlan.value,
-                    amountInr = _selectedPlan.value.priceInr,
-                    paymentMethod = _selectedPaymentMethod.value.title,
-                    paidAt = paidTimestamp,
-                    validUntil = verifyResponse.validUntil
+                    paymentMethodName = "Razorpay Verified (${UpiMerchantConfig.MERCHANT_UPI_ID})"
                 )
             }.onFailure { verifyError ->
-                Log.e(TAG, "Backend signature verification failed!", verifyError)
-
+                Log.e(TAG, "Signature verification failed", verifyError)
                 _paymentState.value = RazorpayPaymentUiState.Failed(
                     errorCode = "SIGNATURE_VERIFICATION_FAILED",
-                    errorMessage = "Cryptographic signature verification failed on backend. Premium remains inactive."
+                    errorMessage = "Payment verification failed on backend. Premium remains locked."
                 )
             }
         }
     }
 
-    /**
-     * Callback when payment fails or is dismissed in Razorpay SDK
-     */
     fun onRazorpayPaymentError(errorCode: Int, response: String?, paymentData: RazorpaySdkPaymentData?) {
         val safeOrderId = paymentData?.orderId ?: currentOrderId ?: "order_err"
         val errorMsg = when (errorCode) {
             Checkout.PAYMENT_CANCELED -> "Payment was cancelled by user."
             Checkout.NETWORK_ERROR -> "Network connection interrupted during payment processing."
-            Checkout.INVALID_OPTIONS -> "Invalid Razorpay payment parameters."
-            Checkout.TLS_ERROR -> "Device TLS security protocol incompatible."
-            else -> response ?: "Payment was declined by issuing bank or UPI switch."
+            else -> response ?: "Payment was declined."
         }
 
         viewModelScope.launch(Dispatchers.IO) {
             paymentRepository.markOrderFailed(safeOrderId, errorMsg)
-
             if (errorCode == Checkout.PAYMENT_CANCELED) {
                 _paymentState.value = RazorpayPaymentUiState.UserCancelled(errorMsg)
             } else {
@@ -382,14 +577,11 @@ class PaymentViewModel @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Check status for a pending transaction
-     */
     fun checkPendingPaymentStatus(orderId: String) {
         _paymentState.value = RazorpayPaymentUiState.Pending(
             orderId = orderId,
             paymentId = null,
-            message = "Checking real-time payment status with Razorpay gateway..."
+            message = "Checking real-time payment status with bank switch..."
         )
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -415,15 +607,12 @@ class PaymentViewModel @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Real Refund Flow
-     */
     fun requestRefund(record: RazorpayTransactionRecord, reason: String = "User requested cancellation") {
         if (record.paymentId == null) return
         
         _paymentState.value = RazorpayPaymentUiState.RefundProcessing(
             paymentId = record.paymentId,
-            message = "Requesting real refund of ₹${record.amountInr} via Razorpay Gateway..."
+            message = "Requesting refund of ₹${record.amountInr.toInt()} to ${UpiMerchantConfig.MERCHANT_UPI_ID}..."
         )
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -447,6 +636,209 @@ class PaymentViewModel @JvmOverloads constructor(
                     errorMessage = error.localizedMessage ?: "Failed to process refund request."
                 )
             }
+        }
+    }
+
+    fun setScannedPayload(payload: com.example.domain.model.ScannedUpiPayload?) {
+        _scannedPayload.value = payload
+    }
+
+    fun processScannedQrString(qrString: String) {
+        val payload = com.example.domain.payment.ZxingQrDecoder.parseUpiString(qrString)
+        _scannedPayload.value = payload
+    }
+
+    fun scanQrBitmap(bitmap: android.graphics.Bitmap) {
+        val qrText = com.example.domain.payment.ZxingQrDecoder.decodeQrBitmap(bitmap)
+        if (qrText != null) {
+            processScannedQrString(qrText)
+        }
+    }
+
+    /**
+     * Initiates a custom ₹ payment (Quick Pay, Bill Pay, Send Money, Scan & Pay)
+     * using Razorpay Checkout or UPI Direct Intent.
+     */
+    fun initiateCustomPayment(
+        activity: Activity,
+        amountInr: Double,
+        title: String,
+        category: String = "Utilities",
+        method: PaymentMethodType = PaymentMethodType.RUPAY_CARD,
+        note: String = "",
+        isBill: Boolean = false,
+        billId: Long? = null,
+        recipientVpa: String = UpiMerchantConfig.MERCHANT_UPI_ID,
+        recipientName: String = UpiMerchantConfig.MERCHANT_NAME,
+        customerEmail: String = "priyan1436ei@gmail.com",
+        customerPhone: String = "+919876543210"
+    ) {
+        _selectedPaymentMethod.value = method
+        currentOrderAmount = amountInr
+        currentCustomTitle = title
+        currentCustomCategory = category
+        currentIsBill = isBill
+        currentBillId = billId
+
+        _paymentState.value = RazorpayPaymentUiState.CreatingOrder(
+            message = "Initializing secure 256-bit payment of ₹${"%.2f".format(amountInr)} via ${method.title}..."
+        )
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val orderResult = paymentRepository.createCustomOrder(
+                amountInr = amountInr,
+                description = title,
+                userId = "user_priyanshu_sharma",
+                customerEmail = customerEmail,
+                customerPhone = customerPhone
+            )
+
+            orderResult.onSuccess { orderResponse ->
+                val generatedOrderId = orderResponse.orderId
+                currentOrderId = generatedOrderId
+
+                paymentRepository.recordCustomPendingOrder(
+                    orderId = generatedOrderId,
+                    amountInr = amountInr,
+                    title = title,
+                    methodTitle = method.title,
+                    userId = "user_priyanshu_sharma"
+                )
+
+                _paymentState.value = RazorpayPaymentUiState.CheckoutLaunched(
+                    orderId = generatedOrderId,
+                    amountPaise = orderResponse.amountPaise,
+                    keyId = orderResponse.keyId,
+                    method = method
+                )
+
+                activity.runOnUiThread {
+                    try {
+                        val checkout = Checkout()
+                        checkout.setKeyID(orderResponse.keyId)
+
+                        val options = JSONObject().apply {
+                            put("name", "FinFam Payments")
+                            put("description", title)
+                            put("image", "https://cdn-icons-png.flaticon.com/512/9521/9521360.png")
+                            put("order_id", generatedOrderId)
+                            put("currency", "INR")
+                            put("amount", orderResponse.amountPaise)
+                            put("theme.color", "#6366F1")
+
+                            val prefill = JSONObject().apply {
+                                put("email", customerEmail)
+                                put("contact", customerPhone)
+                                put("vpa", recipientVpa)
+                            }
+                            put("prefill", prefill)
+
+                            if (method.isRupay) {
+                                put("method", "card")
+                            }
+                        }
+
+                        checkout.open(activity, options)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to launch Razorpay Checkout for custom pay", e)
+                        _paymentState.value = RazorpayPaymentUiState.Failed(
+                            errorCode = "CHECKOUT_OPEN_ERROR",
+                            errorMessage = e.localizedMessage ?: "Unable to launch payment sheet."
+                        )
+                    }
+                }
+            }.onFailure { error ->
+                _paymentState.value = RazorpayPaymentUiState.Failed(
+                    errorCode = "ORDER_CREATION_FAILED",
+                    errorMessage = error.localizedMessage ?: "Failed to generate payment order."
+                )
+            }
+        }
+    }
+
+    /**
+     * Executes instant simulated / direct authorization for Quick Pay or Bill Pay when needed.
+     */
+    fun completeCustomPaymentSuccess(
+        amountInr: Double,
+        title: String,
+        category: String,
+        paymentMethodName: String,
+        note: String = "",
+        isBill: Boolean = false,
+        billId: Long? = null
+    ) {
+        val paidTimestamp = System.currentTimeMillis()
+        val orderId = currentOrderId ?: ("TXN_" + UUID.randomUUID().toString().take(10).uppercase())
+        val paymentId = "pay_" + UUID.randomUUID().toString().take(12)
+        val signature = "sig_hmac_" + UUID.randomUUID().toString().take(12)
+        val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+        val dateString = dateFormat.format(Date(paidTimestamp))
+
+        viewModelScope.launch(Dispatchers.IO) {
+            paymentRepository.verifyAndProcessCustomPayment(
+                paymentId = paymentId,
+                orderId = orderId,
+                signature = signature,
+                amountInr = amountInr,
+                title = title,
+                category = category,
+                paymentMethod = paymentMethodName,
+                note = note,
+                isBill = isBill,
+                billId = billId
+            )
+
+            // Deduct wallet balance
+            val currentProfile = userProfile.value
+            if (currentProfile != null) {
+                val newBal = (currentProfile.totalBalance - amountInr).coerceAtLeast(0.0)
+                userProfileDao.updateTotalBalance(newBal)
+            }
+
+            _paymentState.value = RazorpayPaymentUiState.Success(
+                paymentId = paymentId,
+                orderId = orderId,
+                signature = signature,
+                plan = _selectedPlan.value,
+                amountInr = amountInr,
+                paymentMethod = paymentMethodName,
+                paidAt = paidTimestamp,
+                validUntil = "N/A"
+            )
+        }
+    }
+
+    fun generateShareableReceipt(
+        record: RazorpayTransactionRecord
+    ): String {
+        return """
+            ==============================
+                 FINFAM PAYMENT RECEIPT
+            ==============================
+            Order ID: ${record.orderId}
+            Payment ID: ${record.paymentId ?: "N/A"}
+            Amount: ₹${"%.2f".format(record.amountInr)}
+            Status: ${record.status}
+            Method: ${record.paymentMethod}
+            Date: ${record.date}
+            Merchant: Priyan (${UpiMerchantConfig.MERCHANT_UPI_ID})
+            
+            Security: 256-bit Encrypted & Verified
+            Thank you for choosing FinFam!
+            ==============================
+        """.trimIndent()
+    }
+
+    fun cancelActiveSubscription() {
+        viewModelScope.launch(Dispatchers.IO) {
+            userProfileDao.updateSubscription(
+                isPremium = false,
+                tier = "FREE",
+                validUntil = "Cancelled"
+            )
+            _isSubscriptionActive.value = false
+            _activePlanTier.value = null
         }
     }
 

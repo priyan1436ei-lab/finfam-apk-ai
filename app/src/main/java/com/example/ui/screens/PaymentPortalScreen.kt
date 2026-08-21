@@ -1,6 +1,10 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import android.widget.Toast
+import androidx.fragment.app.FragmentActivity
+import com.example.domain.security.BiometricAuthManager
+import com.example.domain.security.BiometricAuthResult
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -187,7 +191,7 @@ fun PaymentPortalScreen(
                 )
             }
             is RazorpayPaymentUiState.Pending -> {
-                PaymentPendingView(
+                PortalPaymentPendingView(
                     state = state,
                     onCheckStatus = {
                         paymentViewModel.checkPendingPaymentStatus(state.orderId)
@@ -255,11 +259,41 @@ fun PaymentPortalScreen(
                                 }
                             },
                             onPayClick = {
-                                activity?.let { act ->
-                                    if (selectedMethod == PaymentMethodType.UPI_INTENT) {
-                                        paymentViewModel.launchUpiIntentDirect(act)
-                                    } else {
-                                        paymentViewModel.initiateRealPayment(act, selectedPlan, selectedMethod)
+                                val fragAct = activity as? FragmentActivity
+                                if (fragAct != null) {
+                                    BiometricAuthManager.promptBiometric(
+                                        activity = fragAct,
+                                        title = "Authorize Subscription Checkout",
+                                        subtitle = "${selectedPlan.title} (₹${selectedPlan.priceInr.toInt()})",
+                                        description = "Verify biometric or screen lock to complete transaction",
+                                        onResult = { result ->
+                                            when (result) {
+                                                is BiometricAuthResult.Success -> {
+                                                    if (selectedMethod == PaymentMethodType.UPI) {
+                                                        paymentViewModel.launchUpiIntentDirect(fragAct)
+                                                    } else {
+                                                        paymentViewModel.initiateRealPayment(fragAct, selectedPlan, selectedMethod)
+                                                    }
+                                                }
+                                                is BiometricAuthResult.Cancelled -> {
+                                                    Toast.makeText(context, "Payment cancelled", Toast.LENGTH_SHORT).show()
+                                                }
+                                                is BiometricAuthResult.Error -> {
+                                                    Toast.makeText(context, "Biometric error: ${result.errString}", Toast.LENGTH_SHORT).show()
+                                                }
+                                                is BiometricAuthResult.Failed -> {
+                                                    Toast.makeText(context, "Authentication failed. Transaction blocked.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }
+                                    )
+                                } else {
+                                    activity?.let { act ->
+                                        if (selectedMethod == PaymentMethodType.UPI) {
+                                            paymentViewModel.launchUpiIntentDirect(act)
+                                        } else {
+                                            paymentViewModel.initiateRealPayment(act, selectedPlan, selectedMethod)
+                                        }
                                     }
                                 }
                             },
@@ -596,8 +630,8 @@ private fun MainCheckoutView(
                             contentAlignment = Alignment.Center
                         ) {
                             when (method) {
-                                PaymentMethodType.UPI, PaymentMethodType.UPI_INTENT -> Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = CyanNeon)
-                                PaymentMethodType.CARD -> Icon(Icons.Default.CreditCard, contentDescription = null, tint = PrimaryBlue)
+                                PaymentMethodType.UPI -> Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = CyanNeon)
+                                PaymentMethodType.RUPAY_CARD, PaymentMethodType.CARD -> Icon(Icons.Default.CreditCard, contentDescription = null, tint = PrimaryBlue)
                                 PaymentMethodType.NET_BANKING -> Icon(Icons.Default.AccountBalance, contentDescription = null, tint = SecondaryViolet)
                                 PaymentMethodType.WALLET -> Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = WarningAmber)
                                 PaymentMethodType.UPI_QR -> Icon(Icons.Default.QrCode, contentDescription = null, tint = SuccessGreen)
@@ -904,7 +938,7 @@ private fun PaymentFailureView(
 }
 
 @Composable
-private fun PaymentPendingView(
+private fun PortalPaymentPendingView(
     state: RazorpayPaymentUiState.Pending,
     onCheckStatus: () -> Unit,
     onBack: () -> Unit,
